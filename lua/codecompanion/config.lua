@@ -57,6 +57,7 @@ local defaults = {
           ["full_stack_dev"] = {
             description = "Full Stack Developer - Can run code, edit code and modify files",
             tools = {
+              "agent",
               "cmd_runner",
               "create_file",
               "file_search",
@@ -159,6 +160,15 @@ local defaults = {
               chunks_per_source = 3,
               max_results = 5,
             },
+          },
+        },
+        ["agent"] = {
+          callback = "strategies.chat.agents.tools.agent",
+          description = "AI Agent with Tree of Thoughts reasoning for complex problem solving and task planning",
+          opts = {
+            requires_approval = true,
+            max_reasoning_depth = 3,
+            confidence_threshold = 0.8,
           },
         },
         ["next_edit_suggestion"] = {
