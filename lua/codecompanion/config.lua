@@ -71,6 +71,15 @@ local defaults = {
               collapse_tools = true,
             },
           },
+          ["reasoning_agents"] = {
+            description = "Meta-reasoning system for algorithm selection and dynamic tool management",
+            tools = {
+              "meta_reasoning_governor",
+            },
+            opts = {
+              collapse_tools = true,
+            },
+          },
           ["files"] = {
             description = "Tools related to creating, reading and editing files",
             tools = {
@@ -171,6 +180,41 @@ local defaults = {
         ["list_code_usages"] = {
           callback = "strategies.chat.tools.catalog.list_code_usages",
           description = "Find code symbol context",
+        },
+        ["tool_discovery"] = {
+          callback = "strategies.chat.tools.catalog.tool_discovery",
+          description = "Discover and get information about all available tools, including schemas and usage instructions",
+          opts = {
+            requires_approval = true,
+          },
+        },
+        ["chain_of_thought_agent"] = {
+          callback = "strategies.chat.tools.catalog.chain_of_thought_agent",
+          description = "Chain of Thought reasoning agent that follows sequential logical steps to solve complex problems",
+          opts = {
+            requires_approval = true,
+          },
+        },
+        ["tree_of_thoughts_agent"] = {
+          callback = "strategies.chat.tools.catalog.tree_of_thoughts_agent",
+          description = "Tree of Thoughts agent that explores multiple reasoning paths through branching and evaluation",
+          opts = {
+            requires_approval = true,
+          },
+        },
+        ["graph_of_thoughts_agent"] = {
+          callback = "strategies.chat.tools.catalog.graph_of_thoughts_agent",
+          description = "Graph of Thoughts agent that uses operations and workflows for complex reasoning with dependencies",
+          opts = {
+            requires_approval = true,
+          },
+        },
+        ["meta_reasoning_governor"] = {
+          callback = "strategies.chat.tools.catalog.meta_reasoning_governor",
+          description = "Meta-reasoning algorithm selector that analyzes problems and selects the optimal reasoning algorithm",
+          opts = {
+            requires_approval = true,
+          },
         },
         opts = {
           auto_submit_errors = false, -- Send any errors to the LLM automatically?
@@ -436,7 +480,7 @@ local defaults = {
           modes = {
             n = "gf",
           },
-          index = 15,
+          index = 16,
           callback = "keymaps.fold_code",
           description = "Fold code",
         },
@@ -444,7 +488,7 @@ local defaults = {
           modes = {
             n = "gd",
           },
-          index = 16,
+          index = 17,
           callback = "keymaps.debug",
           description = "View debug info",
         },
@@ -452,7 +496,7 @@ local defaults = {
           modes = {
             n = "gs",
           },
-          index = 17,
+          index = 18,
           callback = "keymaps.toggle_system_prompt",
           description = "Toggle the system prompt",
         },
@@ -460,22 +504,77 @@ local defaults = {
           modes = {
             n = "gta",
           },
-          index = 18,
+          index = 19,
           callback = "keymaps.auto_tool_mode",
           description = "Toggle automatic tool mode",
         },
         goto_file_under_cursor = {
           modes = { n = "gR" },
-          index = 19,
+          index = 20,
           callback = "keymaps.goto_file_under_cursor",
           description = "Open the file under cursor in a new tab.",
         },
         copilot_stats = {
           modes = { n = "gS" },
-          index = 20,
+          index = 21,
           callback = "keymaps.copilot_stats",
           description = "Show Copilot usage statistics",
         },
+        toggle_terminal_preview = {
+          modes = { n = "gP" },
+          index = 22,
+          callback = "keymaps.toggle_terminal_preview",
+          description = "Toggle terminal preview for command execution",
+        },
+        memory_stats = {
+          modes = { n = "gm" },
+          index = 23,
+          callback = "keymaps.memory_stats",
+          description = "Show chat memory statistics and manage summarization",
+        },
+        memory_export = {
+          modes = { n = "gM" },
+          index = 24,
+          callback = "keymaps.memory_export",
+          description = "Export memory to file",
+        },
+        memory_manage = {
+          modes = { n = "g<C-m>" },
+          index = 25,
+          callback = "keymaps.memory_manage",
+          description = "Open memory management interface",
+        },
+        branch_tree = {
+          modes = { n = "gb" },
+          index = 26,
+          callback = "keymaps.branch_tree",
+          description = "Show conversation branch tree",
+        },
+        branch_management = {
+          modes = { n = "gB" },
+          index = 27,
+          callback = "keymaps.branch_management",
+          description = "Open branch management interface",
+        },
+        create_branch = {
+          modes = { n = "g<C-b>" },
+          index = 28,
+          callback = "keymaps.create_branch",
+          description = "Create a new conversation branch",
+        },
+        switch_branch = {
+          modes = { n = "g<S-b>" },
+          index = 29,
+          callback = "keymaps.switch_branch",
+          description = "Switch to a different branch",
+        },
+      },
+      conversation_branching = {
+        enabled = true, -- Enable conversation branching
+        auto_save_branches = true, -- Automatically save branch state
+        show_branch_indicator = true, -- Show current branch in UI
+        max_branches = 20, -- Maximum number of branches per chat
+        branch_on_divergence = false, -- Automatically create branch when conversation diverges
       },
       opts = {
         blank_prompt = "", -- The prompt to use when the user doesn't provide a prompt

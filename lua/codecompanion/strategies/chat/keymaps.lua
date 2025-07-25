@@ -704,4 +704,229 @@ M.copilot_stats = {
   end,
 }
 
+M.toggle_terminal_preview = {
+  desc = "Toggle terminal preview for command execution",
+  callback = function(chat)
+    local terminal_preview_state = _G.codecompanion_terminal_preview
+
+    if terminal_preview_state and terminal_preview_state.is_active then
+      if terminal_preview_state.winnr and vim.api.nvim_win_is_valid(terminal_preview_state.winnr) then
+        if terminal_preview_state.job_id then
+          vim.fn.jobstop(terminal_preview_state.job_id)
+          terminal_preview_state.job_id = nil
+        end
+
+        vim.api.nvim_win_close(terminal_preview_state.winnr, false)
+        terminal_preview_state.winnr = nil
+        terminal_preview_state.is_active = false
+
+        util.notify("Terminal preview closed", vim.log.levels.INFO)
+        return
+      else
+        terminal_preview_state.winnr = nil
+        terminal_preview_state.is_active = false
+      end
+    end
+
+    local help_text = [[Terminal Preview Help:
+
+To use terminal preview:
+1. Run a command with cmd_runner tool
+2. Add 'terminal_preview: true' to the tool parameters
+3. Example: @cmd_runner {"cmd": "ls -la", "flag": null, "terminal_preview": true}
+
+The terminal preview will show live command output in a split window.
+Press 'gt' again to close active terminal previews.]]
+
+    util.notify(help_text, vim.log.levels.INFO)
+  end,
+}
+
+M.memory_stats = {
+  desc = "Show chat memory statistics and manage summarization",
+  callback = function(chat)
+    if not chat.memory then
+      return util.notify("Memory system not available", vim.log.levels.WARN)
+    end
+
+    local stats = chat.memory:get_stats()
+    local memory_entries = chat.memory:get_memory_entries()
+    local file_info = chat.memory:get_memory_file_info()
+
+    local info_lines = {
+      "# Chat Memory Statistics",
+      "",
+      string.format("**Memory ID:** %s", chat.memory.memory_id or "unknown"),
+      string.format("**Current Messages:** %d", stats.current_messages),
+      string.format("**Estimated Tokens:** %d / %d", stats.estimated_tokens, stats.context_limit),
+      string.format("**Context Usage:** %d%%", stats.context_usage_percent),
+      string.format("**Memory Entries:** %d", stats.memory_entries),
+      string.format("**Should Summarize:** %s", stats.should_summarize and "Yes" or "No"),
+      "",
+    }
+
+    if file_info then
+      table.insert(info_lines, "## Persistence Info:")
+      table.insert(info_lines, string.format("**File Size:** %.2f KB", file_info.size / 1024))
+      table.insert(info_lines, string.format("**Last Saved:** %s", os.date("%Y-%m-%d %H:%M:%S", file_info.modified)))
+      table.insert(info_lines, "")
+    end
+
+    if #memory_entries > 0 then
+      table.insert(info_lines, "## Memory Summaries:")
+      for i, entry in ipairs(memory_entries) do
+        table.insert(
+          info_lines,
+          string.format(
+            "**%d.** Cycles %d-%d (%d messages): %s...",
+            i,
+            entry.start_cycle,
+            entry.end_cycle,
+            entry.original_count,
+            entry.summary:sub(1, 60)
+          )
+        )
+      end
+      table.insert(info_lines, "")
+    end
+
+    table.insert(info_lines, "## Actions:")
+    table.insert(
+      info_lines,
+      "- **Automatic summarization** triggers at "
+        .. math.floor(chat.memory.max_context_ratio * 100)
+        .. "% context usage"
+    )
+    if stats.should_summarize then
+      table.insert(info_lines, "- **Manual summarization** available (will be triggered on next submit)")
+    end
+    table.insert(info_lines, "- **Memory is automatically saved** when chat is closed or summarization occurs")
+
+    local info_text = table.concat(info_lines, "\n")
+    util.notify(info_text, vim.log.levels.INFO)
+  end,
+}
+
+M.memory_export = {
+  desc = "Export memory to file",
+  callback = function(chat)
+    if not chat.memory then
+      return util.notify("Memory system not available", vim.log.levels.WARN)
+    end
+
+    if not chat.memory.memory_id then
+      return util.notify("No memory ID available", vim.log.levels.WARN)
+    end
+
+    local formats = { "json", "text", "markdown" }
+    vim.ui.select(formats, {
+      prompt = "Select export format:",
+      format_item = function(item)
+        return item:upper()
+      end,
+    }, function(selected)
+      if not selected then
+        return
+      end
+
+      vim.ui.input({
+        prompt = string.format("Export path (default: memory_%s.%s): ", chat.memory.memory_id, selected),
+        default = string.format("memory_%s.%s", chat.memory.memory_id, selected),
+      }, function(output_path)
+        if not output_path or output_path == "" then
+          return
+        end
+
+        local MemoryManager = require("codecompanion.strategies.chat.memory_manager")
+        local content = MemoryManager.export_memory_file(chat.memory.memory_id, selected, output_path)
+
+        if content then
+          util.notify(string.format("Memory exported to: %s", output_path), vim.log.levels.INFO)
+        else
+          util.notify("Export failed", vim.log.levels.ERROR)
+        end
+      end)
+    end)
+  end,
+}
+
+M.memory_manage = {
+  desc = "Open memory management interface",
+  callback = function(chat)
+    local MemoryManager = require("codecompanion.strategies.chat.memory_manager")
+    local stats = MemoryManager.get_memory_stats()
+
+    local info_lines = {
+      "# Memory Management",
+      "",
+      string.format("**Total Memory Files:** %d", stats.total_files),
+      string.format("**Valid Files:** %d", stats.valid_files),
+      string.format("**Invalid Files:** %d", stats.invalid_files),
+      string.format("**Total Storage:** %.2f MB", stats.total_size_mb),
+      "",
+    }
+
+    if stats.oldest_file_date then
+      table.insert(info_lines, string.format("**Oldest File:** %s", os.date("%Y-%m-%d", stats.oldest_file_date)))
+    end
+    if stats.newest_file_date then
+      table.insert(info_lines, string.format("**Newest File:** %s", os.date("%Y-%m-%d", stats.newest_file_date)))
+    end
+
+    table.insert(info_lines, "")
+    table.insert(info_lines, "## Actions Available:")
+    table.insert(info_lines, "- Use `:CodeCompanionMemoryCleanup` to clean old memory files")
+    table.insert(info_lines, "- Use `:CodeCompanionMemoryList` to list all memory files")
+    table.insert(info_lines, "- Memory files are stored in: " .. stats.memory_dir)
+
+    local info_text = table.concat(info_lines, "\n")
+    util.notify(info_text, vim.log.levels.INFO)
+  end,
+}
+
+
+M.branch_tree = {
+  desc = "Show conversation branch tree",
+  callback = function(chat)
+    if not chat.branch_ui then
+      return util.notify("Conversation branching not available", vim.log.levels.WARN)
+    end
+
+    chat.branch_ui:show_branch_tree()
+  end,
+}
+
+M.branch_management = {
+  desc = "Open branch management interface",
+  callback = function(chat)
+    if not chat.branch_ui then
+      return util.notify("Conversation branching not available", vim.log.levels.WARN)
+    end
+
+    chat.branch_ui:show_branch_management()
+  end,
+}
+
+M.create_branch = {
+  desc = "Create a new conversation branch",
+  callback = function(chat)
+    if not chat.branch_ui then
+      return util.notify("Conversation branching not available", vim.log.levels.WARN)
+    end
+
+    chat.branch_ui:create_branch_interactive()
+  end,
+}
+
+M.switch_branch = {
+  desc = "Switch to a different branch",
+  callback = function(chat)
+    if not chat.branch_ui then
+      return util.notify("Conversation branching not available", vim.log.levels.WARN)
+    end
+
+    chat.branch_ui:switch_branch_interactive()
+  end,
+}
+
 return M
