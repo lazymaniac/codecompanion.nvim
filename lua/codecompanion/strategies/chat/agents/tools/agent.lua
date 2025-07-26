@@ -40,19 +40,21 @@ end
 -- CENTRALIZED VALIDATION
 -- ============================================================================
 local validation_rules = {
-  initialize = {"goal"},
-  add_node = {"node_id", "content"},
-  evaluate_node = {"node_id", "evaluation"},
-  vote_best_path = {"chosen_path"},
-  define_task = {"task_description"},
-  complete_task = {"result"},
-  reflect = {"reflection"},
+  initialize = { "goal" },
+  add_node = { "node_id", "content" },
+  evaluate_node = { "node_id", "evaluation" },
+  vote_best_path = { "chosen_path" },
+  define_task = { "task_description" },
+  complete_task = { "result" },
+  reflect = { "reflection" },
 }
 
 local function validate_args(action, args)
   local required = validation_rules[action]
-  if not required then return true end
-  
+  if not required then
+    return true
+  end
+
   for _, param in ipairs(required) do
     if not args[param] then
       return false, param .. " is required"
@@ -71,13 +73,13 @@ local function create_and_add_node(tree, id, parent_id, content, evaluation, dep
     children = {},
     created_at = os.time(),
   }
-  
+
   tree.nodes[node.id] = node
   if node.parent_id and tree.nodes[node.parent_id] then
     table.insert(tree.nodes[node.parent_id].children, node.id)
   end
   tree.node_count = tree.node_count + 1
-  
+
   log:debug(
     "[Tree of Thoughts Agent] Created and added node: id=%s, parent=%s, depth=%d, evaluation=%s (total nodes: %d)",
     id,
@@ -86,7 +88,7 @@ local function create_and_add_node(tree, id, parent_id, content, evaluation, dep
     evaluation or "pending",
     tree.node_count
   )
-  
+
   return node
 end
 
@@ -239,7 +241,6 @@ function ReasonActions.evaluate_node(args)
     return { status = "error", data = fmt("Node '%s' not found", args.node_id) }
   end
 
-
   local old_evaluation = agent_state.current_tree.nodes[args.node_id].evaluation
   agent_state.current_tree.nodes[args.node_id].evaluation = args.evaluation
 
@@ -360,7 +361,7 @@ function ExecuteActions.define_task(args)
     status = "success",
     data = fmt(
       "Task defined: %s\n\nTask is ready for execution. Use other available tools to complete it, then call 'complete_task' when done.",
-      task.description,
+      task.description
     ),
   }
 end
