@@ -526,55 +526,6 @@ local defaults = {
           callback = "keymaps.toggle_terminal_preview",
           description = "Toggle terminal preview for command execution",
         },
-        memory_stats = {
-          modes = { n = "gm" },
-          index = 23,
-          callback = "keymaps.memory_stats",
-          description = "Show chat memory statistics and manage summarization",
-        },
-        memory_export = {
-          modes = { n = "gM" },
-          index = 24,
-          callback = "keymaps.memory_export",
-          description = "Export memory to file",
-        },
-        memory_manage = {
-          modes = { n = "g<C-m>" },
-          index = 25,
-          callback = "keymaps.memory_manage",
-          description = "Open memory management interface",
-        },
-        branch_tree = {
-          modes = { n = "gb" },
-          index = 26,
-          callback = "keymaps.branch_tree",
-          description = "Show conversation branch tree",
-        },
-        branch_management = {
-          modes = { n = "gB" },
-          index = 27,
-          callback = "keymaps.branch_management",
-          description = "Open branch management interface",
-        },
-        create_branch = {
-          modes = { n = "g<C-b>" },
-          index = 28,
-          callback = "keymaps.create_branch",
-          description = "Create a new conversation branch",
-        },
-        switch_branch = {
-          modes = { n = "g<S-b>" },
-          index = 29,
-          callback = "keymaps.switch_branch",
-          description = "Switch to a different branch",
-        },
-      },
-      conversation_branching = {
-        enabled = true, -- Enable conversation branching
-        auto_save_branches = true, -- Automatically save branch state
-        show_branch_indicator = true, -- Show current branch in UI
-        max_branches = 20, -- Maximum number of branches per chat
-        branch_on_divergence = false, -- Automatically create branch when conversation diverges
       },
       opts = {
         blank_prompt = "", -- The prompt to use when the user doesn't provide a prompt

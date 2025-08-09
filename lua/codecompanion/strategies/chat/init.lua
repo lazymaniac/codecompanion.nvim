@@ -30,9 +30,6 @@
 ---@field watchers CodeCompanion.Watchers The buffer watcher instance
 ---@field intro_message? string The welcome message that is displayed in the chat buffer
 ---@field yaml_parser vim.treesitter.LanguageTree The Yaml Tree-sitter parser for the chat buffer
----@field memory CodeCompanion.Chat.Memory The memory system for handling long conversations
----@field branch_manager CodeCompanion.Chat.BranchManager The conversation branching system
----@field branch_ui CodeCompanion.Chat.BranchUI The branch user interface
 ---@field _last_role string The last role that was rendered in the chat buffer
 
 ---@class CodeCompanion.ChatArgs Arguments that can be injected into the chat
@@ -899,20 +896,7 @@ function Chat:submit(opts)
       self.adapter = adapters.resolve(config.adapters[vim.g.codecompanion_adapter])
     end
 
-    -- Check memory system and trigger summarization if needed
-    if self.memory then
-      local summarized = self.memory:check_and_summarize()
-      if summarized then
-        log:info("[Chat] Memory system summarized conversation history")
-        -- Update UI to reflect the changes
-        self.ui:render(self.context, self.messages)
-      end
-    end
 
-    -- Update current branch with new messages
-    if self.branch_manager then
-      self.branch_manager:update_current_branch()
-    end
 
     if not config.display.chat.auto_scroll then
       vim.cmd("stopinsert")
@@ -1248,10 +1232,6 @@ function Chat:close()
     self:stop()
   end
 
-  -- Save memory before closing
-  if self.memory then
-    self.memory:save_memory()
-  end
 
   if last_chat and last_chat.bufnr == self.bufnr then
     last_chat = nil
