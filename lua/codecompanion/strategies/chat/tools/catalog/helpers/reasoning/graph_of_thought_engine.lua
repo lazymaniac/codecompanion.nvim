@@ -1,6 +1,7 @@
 ---@class CodeCompanion.GraphOfThoughtEngine
 
 local GoT = require("codecompanion.strategies.chat.tools.catalog.helpers.reasoning.graph_of_thougts")
+local ReasoningVisualizer = require("codecompanion.strategies.chat.tools.catalog.helpers.reasoning_visualizer")
 local log = require("codecompanion.utils.log")
 local fmt = string.format
 
@@ -130,11 +131,14 @@ function Actions.view_graph(args, agent_state)
     return { status = "error", data = "No active graph. Initialize first." }
   end
 
-  local stats = agent_state.current_instance:get_stats()
+  log:debug("[Graph of Thoughts Engine] Viewing graph structure")
+
+  -- Use the new reasoning visualizer with sane defaults
+  local graph_view = ReasoningVisualizer.visualize_graph(agent_state.current_instance)
 
   return {
     status = "success",
-    data = fmt("**View Graph:** %d nodes, %d edges", stats.total_nodes, stats.total_edges),
+    data = graph_view,
   }
 end
 
@@ -145,11 +149,8 @@ function Actions.merge_nodes(args, agent_state)
 
   log:debug("[Graph of Thoughts Engine] Merging nodes: %s", table.concat(args.source_nodes, ", "))
 
-  local success, result = agent_state.current_instance:merge_nodes(
-    args.source_nodes,
-    args.merged_content,
-    args.merged_id
-  )
+  local success, result =
+    agent_state.current_instance:merge_nodes(args.source_nodes, args.merged_content, args.merged_id)
 
   if not success then
     return { status = "error", data = result }
@@ -231,11 +232,11 @@ function GraphOfThoughtEngine.get_config()
       additionalProperties = false,
     },
     system_prompt_config = function()
-      local UnifiedSystemPrompt = require("codecompanion.strategies.chat.tools.catalog.helpers.unified_system_prompt")
-      return UnifiedSystemPrompt.graph_of_thoughts_config()
+      local UnifiedReasoningPrompt =
+        require("codecompanion.strategies.chat.tools.catalog.helpers.unified_reasoning_prompt")
+      return UnifiedReasoningPrompt.graph_of_thoughts_config()
     end,
   }
 end
 
 return GraphOfThoughtEngine
-

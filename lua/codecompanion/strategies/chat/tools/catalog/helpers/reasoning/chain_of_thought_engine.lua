@@ -1,6 +1,8 @@
 ---@class CodeCompanion.ChainOfThoughtEngine
 
-local ChainOfThought = require("codecompanion.strategies.chat.tools.catalog.helpers.reasoning.chain_of_thoughts").ChainOfThought
+local ChainOfThought =
+  require("codecompanion.strategies.chat.tools.catalog.helpers.reasoning.chain_of_thoughts").ChainOfThought
+local ReasoningVisualizer = require("codecompanion.strategies.chat.tools.catalog.helpers.reasoning_visualizer")
 local log = require("codecompanion.utils.log")
 local fmt = string.format
 
@@ -44,7 +46,8 @@ function Actions.add_step(args, agent_state)
     return { status = "error", data = "No active chain. Initialize first." }
   end
 
-  local success, message = agent_state.current_instance:add_step(args.step_type, args.content, args.reasoning or "", args.step_id)
+  local success, message =
+    agent_state.current_instance:add_step(args.step_type, args.content, args.reasoning or "", args.step_id)
   if not success then
     return { status = "error", data = message }
   end
@@ -82,19 +85,10 @@ function Actions.view_chain(args, agent_state)
     return { status = "error", data = "No active chain. Initialize first." }
   end
 
-  local chain_view = "=== CHAIN OF THOUGHT ===\n"
-  local problem_str = type(agent_state.current_instance.problem) == "table"
-      and vim.inspect(agent_state.current_instance.problem)
-    or tostring(agent_state.current_instance.problem)
-  chain_view = chain_view .. "Problem: " .. problem_str .. "\n\n"
+  log:debug("[Chain of Thought Engine] Viewing chain structure")
 
-  for i, step in ipairs(agent_state.current_instance.steps) do
-    chain_view = chain_view .. string.format("Step %d: %s (%s)\n", i, step.id, step.type)
-    chain_view = chain_view .. "Content: " .. step.content .. "\n"
-    chain_view = chain_view .. "Reasoning: " .. step.reasoning .. "\n\n"
-  end
-
-  chain_view = chain_view .. string.format("Total Steps: %d\n", #agent_state.current_instance.steps)
+  -- Use the new reasoning visualizer with sane defaults
+  local chain_view = ReasoningVisualizer.visualize_chain(agent_state.current_instance)
 
   return {
     status = "success",
@@ -183,8 +177,9 @@ function ChainOfThoughtEngine.get_config()
       additionalProperties = false,
     },
     system_prompt_config = function()
-      local UnifiedSystemPrompt = require("codecompanion.strategies.chat.tools.catalog.helpers.unified_system_prompt")
-      return UnifiedSystemPrompt.chain_of_thought_config()
+      local UnifiedReasoningPrompt =
+        require("codecompanion.strategies.chat.tools.catalog.helpers.unified_reasoning_prompt")
+      return UnifiedReasoningPrompt.chain_of_thought_config()
     end,
   }
 end

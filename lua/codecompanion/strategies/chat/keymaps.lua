@@ -742,9 +742,4 @@ Press 'gt' again to close active terminal previews.]]
   end,
 }
 
-
-
-
-
-
 return M

@@ -191,23 +191,14 @@ local defaults = {
         ["chain_of_thought_agent"] = {
           callback = "strategies.chat.tools.catalog.chain_of_thought_agent",
           description = "Chain of Thought reasoning agent that follows sequential logical steps to solve complex problems",
-          opts = {
-            requires_approval = true,
-          },
         },
         ["tree_of_thoughts_agent"] = {
           callback = "strategies.chat.tools.catalog.tree_of_thoughts_agent",
           description = "Tree of Thoughts agent that explores multiple reasoning paths through branching and evaluation",
-          opts = {
-            requires_approval = true,
-          },
         },
         ["graph_of_thoughts_agent"] = {
           callback = "strategies.chat.tools.catalog.graph_of_thoughts_agent",
           description = "Graph of Thoughts agent that uses operations and workflows for complex reasoning with dependencies",
-          opts = {
-            requires_approval = true,
-          },
         },
         ["meta_reasoning_governor"] = {
           callback = "strategies.chat.tools.catalog.meta_reasoning_governor",

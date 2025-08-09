@@ -1,5 +1,6 @@
 ---@class CodeCompanion.TreeOfThoughtEngine
 
+local ReasoningVisualizer = require("codecompanion.strategies.chat.tools.catalog.helpers.reasoning_visualizer")
 local ToT = require("codecompanion.strategies.chat.tools.catalog.helpers.reasoning.tree_of_thoughts")
 local log = require("codecompanion.utils.log")
 local fmt = string.format
@@ -159,22 +160,37 @@ function Actions.view_tree(args, agent_state)
 
   log:debug("[Tree of Thoughts Engine] Viewing tree structure")
 
-  -- Capture print_tree output
-  local tree_lines = {}
-  local original_print = print
-  print = function(line)
-    table.insert(tree_lines, line or "")
+  -- Use the new reasoning visualizer
+  local config = {
+    show_scores = true,
+    show_timestamps = args.show_timestamps or false,
+    show_metadata = args.show_metadata or false,
+    max_content_length = args.max_content_length or 60,
+    use_unicode = args.use_unicode ~= false, -- Default to true
+  }
+
+  local tree_view = ""
+
+  -- If we have a root node, visualize from there
+  if agent_state.current_instance.root then
+    tree_view = ReasoningVisualizer.visualize_tree(agent_state.current_instance.root, config)
+  else
+    -- Fallback to original method if no root
+    local tree_lines = {}
+    local original_print = print
+    print = function(line)
+      table.insert(tree_lines, line or "")
+    end
+
+    agent_state.current_instance:print_tree()
+    print = original_print
+
+    tree_view = table.concat(tree_lines, "\n")
   end
-
-  agent_state.current_instance:print_tree()
-
-  print = original_print -- Restore original print
-
-  local tree_view = table.concat(tree_lines, "\n")
 
   return {
     status = "success",
-    data = fmt("# Tree Structure\n\n%s", tree_view),
+    data = tree_view,
   }
 end
 
@@ -229,8 +245,9 @@ function TreeOfThoughtEngine.get_config()
       additionalProperties = false,
     },
     system_prompt_config = function()
-      local UnifiedSystemPrompt = require("codecompanion.strategies.chat.tools.catalog.helpers.unified_system_prompt")
-      return UnifiedSystemPrompt.tree_of_thoughts_config()
+      local UnifiedReasoningPrompt =
+        require("codecompanion.strategies.chat.tools.catalog.helpers.unified_reasoning_prompt")
+      return UnifiedReasoningPrompt.tree_of_thoughts_config()
     end,
   }
 end

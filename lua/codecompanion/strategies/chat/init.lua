@@ -896,8 +896,6 @@ function Chat:submit(opts)
       self.adapter = adapters.resolve(config.adapters[vim.g.codecompanion_adapter])
     end
 
-
-
     if not config.display.chat.auto_scroll then
       vim.cmd("stopinsert")
     end
@@ -1231,7 +1229,6 @@ function Chat:close()
   if self.current_request then
     self:stop()
   end
-
 
   if last_chat and last_chat.bufnr == self.bufnr then
     last_chat = nil

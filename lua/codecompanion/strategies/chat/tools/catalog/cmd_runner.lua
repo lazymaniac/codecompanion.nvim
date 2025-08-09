@@ -303,11 +303,16 @@ return {
 
     ---Rejection message back to the LLM
     ---@param self CodeCompanion.Tool.CmdRunner
-    ---@param tool CodeCompanion.Tools
+    ---@param agent CodeCompanion.Tools
     ---@param cmd table
+    ---@param feedback? string
     ---@return nil
-    rejected = function(self, tool, cmd)
-      tool.chat:add_tool_output(self, fmt("The user rejected the execution of the command `%s`?", self.args.cmd))
+    rejected = function(self, agent, cmd, feedback)
+      local message = fmt("The user rejected the execution of the command `%s`", self.args.cmd)
+      if feedback and feedback ~= "" then
+        message = message .. fmt(" with feedback: %s", feedback)
+      end
+      agent.chat:add_tool_output(self, message)
     end,
 
     ---@param self CodeCompanion.Tool.CmdRunner

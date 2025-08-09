@@ -1,5 +1,5 @@
-local Tools = require("codecompanion.strategies.chat.tools.init")
 local ToolFilter = require("codecompanion.strategies.chat.tools.tool_filter")
+local Tools = require("codecompanion.strategies.chat.tools.init")
 local config = require("codecompanion.config")
 local log = require("codecompanion.utils.log")
 local fmt = string.format
@@ -109,7 +109,6 @@ end
 ---List all available tools in a formatted way
 ---@return string Formatted list of tools
 local function list_tools()
-
   local all_tools = get_all_tools_with_schemas()
 
   local output = {}

@@ -1,13 +1,13 @@
----@class CodeCompanion.Agent.UnifiedSystemPrompt
+---@class CodeCompanion.Agent.UnifiedReasoningPrompt
 ---Unified system prompt generator for all reasoning agents
-local UnifiedSystemPrompt = {}
+local UnifiedReasoningPrompt = {}
 
 local fmt = string.format
 
 ---Generate unified system prompt for reasoning agents
 ---@param agent_config table Agent-specific configuration
 ---@return string Complete system prompt
-function UnifiedSystemPrompt.generate(agent_config)
+function UnifiedReasoningPrompt.generate(agent_config)
   local agent_type = agent_config.agent_type or "Unknown"
   local agent_description = agent_config.agent_description or "reasoning agent"
   local reasoning_approach = agent_config.reasoning_approach or "sequential logical steps"
@@ -70,7 +70,7 @@ end
 
 ---Get Chain of Thought specific configuration
 ---@return table Agent configuration
-function UnifiedSystemPrompt.chain_of_thought_config()
+function UnifiedReasoningPrompt.chain_of_thought_config()
   return {
     agent_type = "Chain of Thought",
     agent_description = "Chain of Thought problem-solving agent",
@@ -93,7 +93,7 @@ end
 
 ---Get Tree of Thoughts specific configuration
 ---@return table Agent configuration
-function UnifiedSystemPrompt.tree_of_thoughts_config()
+function UnifiedReasoningPrompt.tree_of_thoughts_config()
   return {
     agent_type = "Tree of Thoughts",
     agent_description = "Tree of Thoughts problem-solving agent",
@@ -117,7 +117,7 @@ end
 
 ---Get Graph of Thoughts specific configuration
 ---@return table Agent configuration
-function UnifiedSystemPrompt.graph_of_thoughts_config()
+function UnifiedReasoningPrompt.graph_of_thoughts_config()
   return {
     agent_type = "Graph of Thoughts",
     agent_description = "Graph of Thoughts problem-solving agent",
@@ -141,4 +141,4 @@ function UnifiedSystemPrompt.graph_of_thoughts_config()
   }
 end
 
-return UnifiedSystemPrompt
+return UnifiedReasoningPrompt
