@@ -1269,6 +1269,13 @@ function Chat:done(output, reasoning, tools, meta, opts)
 
   self:dispatch("on_completed", { status = self.status })
   utils.fire("ChatDone", { bufnr = self.bufnr, id = self.id })
+
+  local history_config = config.interactions.chat.history
+  if history_config and history_config.enabled and history_config.auto_save then
+    vim.schedule(function()
+      require("codecompanion.interactions.chat.history").save(self)
+    end)
+  end
 end
 
 ---Add context to the chat buffer (Useful for user's adding custom Slash Commands)

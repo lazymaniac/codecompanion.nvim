@@ -29,6 +29,134 @@ local function get_adapters()
   return _cached_adapters
 end
 
+---Open the history picker
+---@param opts table
+---@return nil
+local function open_history_picker(opts)
+  local history = require("codecompanion.interactions.chat.history")
+  local history_config = config.interactions.chat.history
+
+  if not history_config or history_config.enabled == false then
+    return require("codecompanion.utils").notify("Chat history is disabled", vim.log.levels.WARN)
+  end
+
+  local chats = history.list()
+  if #chats == 0 then
+    return require("codecompanion.utils").notify("No chat history found", vim.log.levels.INFO)
+  end
+
+  local picker = history_config.picker or "default"
+  local items = vim.tbl_map(function(chat)
+    return {
+      id = chat.id,
+      title = chat.title or "Untitled",
+      updated_at = chat.updated_at,
+      message_count = chat.message_count or 0,
+      adapter = chat.adapter,
+    }
+  end, chats)
+
+  local function format_item(item)
+    local date = os.date("%Y-%m-%d %H:%M", item.updated_at)
+    return string.format("[%s] %s (%d msgs)", date, item.title, item.message_count)
+  end
+
+  local function on_select(item)
+    if item then
+      history.open(item.id, { window_opts = opts.window_opts })
+    end
+  end
+
+  if picker == "telescope" and pcall(require, "telescope") then
+    local pickers = require("telescope.pickers")
+    local finders = require("telescope.finders")
+    local conf = require("telescope.config").values
+    local actions = require("telescope.actions")
+    local action_state = require("telescope.actions.state")
+
+    pickers
+      .new({}, {
+        prompt_title = "Chat History",
+        finder = finders.new_table({
+          results = items,
+          entry_maker = function(entry)
+            local display = format_item(entry)
+            return {
+              value = entry,
+              display = display,
+              ordinal = display,
+            }
+          end,
+        }),
+        sorter = conf.generic_sorter({}),
+        attach_mappings = function(prompt_bufnr, _)
+          actions.select_default:replace(function()
+            actions.close(prompt_bufnr)
+            local selection = action_state.get_selected_entry()
+            if selection then
+              on_select(selection.value)
+            end
+          end)
+          return true
+        end,
+      })
+      :find()
+  elseif picker == "fzf_lua" and pcall(require, "fzf-lua") then
+    local fzf = require("fzf-lua")
+    local display_to_item = {}
+    for _, item in ipairs(items) do
+      display_to_item[format_item(item)] = item
+    end
+    fzf.fzf_exec(vim.tbl_keys(display_to_item), {
+      prompt = "Chat History> ",
+      actions = {
+        ["default"] = function(selected)
+          if selected and selected[1] then
+            on_select(display_to_item[selected[1]])
+          end
+        end,
+      },
+    })
+  elseif picker == "mini_pick" and pcall(require, "mini.pick") then
+    local pick = require("mini.pick")
+    pick.start({
+      source = {
+        name = "Chat History",
+        items = vim.tbl_map(function(item)
+          return { text = format_item(item), item = item }
+        end, items),
+        choose = function(chosen)
+          if chosen then
+            on_select(chosen.item)
+          end
+        end,
+      },
+    })
+  elseif picker == "snacks" and pcall(require, "snacks") then
+    local snacks = require("snacks")
+    snacks.picker.pick({
+      title = "Chat History",
+      items = vim.tbl_map(function(item)
+        return { text = format_item(item), data = item }
+      end, items),
+      format = function(item, _)
+        return { { item.text } }
+      end,
+      confirm = function(picker_instance, item)
+        picker_instance:close()
+        if item then
+          on_select(item.data)
+        end
+      end,
+    })
+  else
+    vim.ui.select(items, {
+      prompt = "Select chat from history:",
+      format_item = format_item,
+    }, on_select)
+  end
+end
+
 ---@type CodeCompanion.Command[]
 return {
   {
@@ -273,6 +401,53 @@ return {
       nargs = "*",
       complete = function(arg_lead, cmdline, _cursor_pos)
         return { "refresh" }
+      end,
+    },
+  },
+  {
+    cmd = "CodeCompanionHistory",
+    callback = function(opts)
+      local history = require("codecompanion.interactions.chat.history")
+      local subcommand = opts.fargs[1] and opts.fargs[1]:lower()
+
+      if subcommand == "save" then
+        local chat = codecompanion.last_chat()
+        if chat then
+          local id = history.save(chat)
+          if id then
+            require("codecompanion.utils").notify("Chat saved to history", vim.log.levels.INFO)
+          end
+        else
+          require("codecompanion.utils").notify("No active chat to save", vim.log.levels.WARN)
+        end
+      elseif subcommand == "last" then
+        local last = history.open_last()
+        if not last then
+          require("codecompanion.utils").notify("No chat history found", vim.log.levels.INFO)
+        end
+      elseif subcommand == "clear" then
+        vim.ui.select({ "Yes", "No" }, { prompt = "Clear all chat history?" }, function(choice)
+          if choice == "Yes" then
+            history.clear()
+            require("codecompanion.utils").notify("Chat history cleared", vim.log.levels.INFO)
+          end
+        end)
+      else
+        open_history_picker(opts)
+      end
+    end,
+    opts = {
+      desc = "Browse and manage chat history",
+      range = false,
+      nargs = "?",
+      complete = function(arg_lead, cmdline, _cursor_pos)
+        local completions = { "save", "last", "clear" }
+        return vim
+          .iter(completions)
+          :filter(function(c)
+            return c:find(vim.pesc(arg_lead), 1, true) == 1
+          end)
+          :totable()
       end,
     },
   },

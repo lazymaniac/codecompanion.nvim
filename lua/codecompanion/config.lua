@@ -657,6 +657,13 @@ If you are providing code changes, use the insert_edit_into_file tool (if availa
           description = "Reject Always",
         },
       },
+      history = {
+        enabled = true, -- Enable chat history?
+        auto_save = true, -- Automatically save chats to history?
+        dir = vim.fn.stdpath("data") .. "/codecompanion/history", -- Directory to save chat history
+        max_items = 50, -- Maximum number of saved chats to keep
+        picker = providers.pickers, -- telescope|fzf_lua|mini_pick|snacks|default
+      },
       opts = {
         blank_prompt = "", -- The prompt to use when the user doesn't provide a prompt
         completion_provider = providers.completion, -- blink|cmp|coc|default
