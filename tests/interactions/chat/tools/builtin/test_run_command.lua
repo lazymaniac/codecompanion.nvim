@@ -74,6 +74,27 @@ T["run_command tool times out a long running command"] = function()
   h.expect_contains("timed out", output)
 end
 
+T["runs a command when the nullable flag is omitted"] = function()
+  child.lua([[
+    local tool = {
+      {
+        ["function"] = {
+          name = "run_command",
+          arguments = '{"cmd": "echo cc_flagless"}',
+        },
+      },
+    }
+    tools:execute(chat, tool)
+    vim.wait(5000, function()
+      return #chat.messages > 1
+    end, 25)
+  ]])
+
+  local output = child.lua_get("chat.messages[#chat.messages].content")
+  h.expect_contains("cc_flagless", output)
+  h.expect_not_contains("missing required", output)
+end
+
 T["stopping the chat kills a running command"] = function()
   if vim.fn.has("win32") == 1 then
     MiniTest.skip("`sleep` isn't available on Windows")

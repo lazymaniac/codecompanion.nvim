@@ -157,7 +157,9 @@ function M.normalize(schema, args)
   local missing, unrecognized = {}, {}
   for name in pairs(required) do
     local value = args[name]
-    if value == nil or (value == vim.NIL and not allows_null(properties[name])) then
+    -- Strict schemas mark optional parameters as required but nullable, so a
+    -- nullable parameter is satisfied whether it arrives as null or not at all
+    if (value == nil or value == vim.NIL) and not allows_null(properties[name]) then
       table.insert(missing, fmt("`%s`", name))
     end
   end
@@ -168,8 +170,9 @@ function M.normalize(schema, args)
   end
 
   if #missing == 0 and (#unrecognized == 0 or parameters.additionalProperties == true) then
-    -- A null that satisfied a nullable parameter has served its purpose, and
-    -- every tool reads an absent value more reliably than vim.NIL
+    -- Tools read an absent value far more reliably than vim.NIL, which is
+    -- truthy in Lua and would pass every `if args.x then` guard
+
     for name, value in pairs(args) do
       if value == vim.NIL then
         args[name] = nil
