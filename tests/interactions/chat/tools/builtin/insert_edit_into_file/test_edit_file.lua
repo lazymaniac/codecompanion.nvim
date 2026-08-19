@@ -60,6 +60,44 @@ T["Core Functionality"]["performs basic single edit"] = function()
   h.eq(output, { "function getFullName() {", "  return 'John Doe';", "}" })
 end
 
+T["Core Functionality"]["accepts the parameter names other edit tools use"] = function()
+  child.lua([[
+    vim.fn.writefile({ "keep", "target", "keep" }, _G.TEST_TMPFILE)
+
+    local tool = {{
+      ["function"] = {
+        name = "insert_edit_into_file",
+        arguments = string.format('{"path": "%s", "edits": [{"old_string": "target", "new_string": "replaced"}]}', _G.TEST_TMPFILE)
+      },
+    }}
+
+    tools:execute(chat, tool)
+    vim.wait(10)
+  ]])
+
+  h.eq({ "keep", "replaced", "keep" }, child.lua_get("vim.fn.readfile(_G.TEST_TMPFILE)"))
+end
+
+T["Core Functionality"]["reports unrecognized parameters back to the LLM"] = function()
+  child.lua([[
+    vim.fn.writefile({ "keep" }, _G.TEST_TMPFILE)
+
+    local tool = {{
+      ["function"] = {
+        name = "insert_edit_into_file",
+        arguments = string.format('{"filepath": "%s", "instructions": "rename it"}', _G.TEST_TMPFILE)
+      },
+    }}
+
+    tools:execute(chat, tool)
+    vim.wait(10)
+  ]])
+
+  local output = child.lua_get("chat.messages[#chat.messages].content")
+  h.expect_contains("missing required `edits`", output)
+  h.expect_contains("does not have `instructions`", output)
+end
+
 T["Core Functionality"]["fires FileEdited with the first changed line"] = function()
   child.lua([[
     local initial = "before\ntarget\nafter"

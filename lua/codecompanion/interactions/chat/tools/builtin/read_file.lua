@@ -15,7 +15,7 @@ local function on_error(args)
   }
 end
 
----Fill in a missing or negative line bound with its default
+---Fill in a missing or out of range line bound with its default
 ---@param bound {value: any, default: number, field_name: string}
 ---@return number? line
 ---@return string? error_msg
@@ -29,17 +29,17 @@ local function normalize_bound(bound)
     return nil, fmt("%s must be a valid integer, got: %s", bound.field_name, tostring(bound.value))
   end
 
-  return line < 0 and bound.default or line
+  return line < 1 and bound.default or line
 end
 
----Resolve and validate the effective, zero-based line range
----@param args {start_line: any, end_line: any, line_count: number}
+---Resolve and validate the effective, one-based line range
+---@param args {start_line: any, end_line: any, limit: any, line_count: number}
 ---@return {start_line: number, end_line: number}? range
 ---@return string? error_msg
 local function resolve_range(args)
-  local last_line = args.line_count - 1
+  local last_line = args.line_count
 
-  local start_line, start_error = normalize_bound({ value = args.start_line, default = 0, field_name = "start_line" })
+  local start_line, start_error = normalize_bound({ value = args.start_line, default = 1, field_name = "start_line" })
   if start_error then
     return nil, start_error
   end
@@ -54,6 +54,18 @@ local function resolve_range(args)
     return nil, end_error
   end
 
+  -- `limit` is a line count from start_line, only consulted when no end_line was given
+  if args.end_line == nil or args.end_line == vim.NIL or args.end_line == "" then
+    local limit, limit_error = normalize_bound({ value = args.limit, default = 0, field_name = "limit" })
+    if limit_error then
+      return nil, limit_error
+    end
+    ---@cast limit number
+    if limit > 0 then
+      end_line = start_line + limit - 1
+    end
+  end
+
   ---@cast end_line number
   end_line = math.min(end_line, last_line)
   if start_line > end_line then
@@ -63,7 +75,7 @@ local function resolve_range(args)
   return { start_line = start_line, end_line = end_line }
 end
 
----Format a zero-based line range
+---Format a one-based line range
 ---@param range {start_line: number, end_line: number}
 ---@return string
 local function format_range(range)
@@ -91,6 +103,7 @@ local function extract_range(action, lines)
   local range, error_msg = resolve_range({
     start_line = action.start_line,
     end_line = action.end_line,
+    limit = action.limit,
     line_count = line_count,
   })
 
@@ -100,7 +113,7 @@ local function extract_range(action, lines)
   end
 
   local range_label = format_range(range)
-  local content = table.concat(lines, "\n", range.start_line + 1, range.end_line + 1)
+  local content = table.concat(lines, "\n", range.start_line, range.end_line)
   return {
     status = "success",
     data = {
@@ -115,7 +128,7 @@ local function extract_range(action, lines)
         vim.fn.fnamemodify(action.filepath, ":e"),
         content
       ),
-      for_user = fmt("Read file `%s` (%s)", vim.fn.fnamemodify(action.filepath, ":."), range_label),
+      for_user = fmt("Read file `%s` (%s)", tool_helpers.display_path(action.filepath), range_label),
     },
   }
 end
@@ -146,7 +159,7 @@ return {
     type = "function",
     ["function"] = {
       name = "read_file",
-      description = "Read all or part of a file using zero-based, inclusive line ranges."
+      description = "Read all or part of a file using one-based, inclusive line ranges."
         .. " Paths may be absolute or relative to the current working directory."
         .. " Call again with another range if more content is needed.",
       parameters = {
@@ -158,13 +171,17 @@ return {
           },
           start_line = {
             type = "integer",
-            description = "Optional zero-based first line. Omit it or use any negative value to start at the beginning;"
+            description = "Optional one-based first line. Omit it to start at the beginning of the file;"
               .. " a value past the end is invalid.",
           },
           end_line = {
             type = "integer",
-            description = "Optional zero-based last line, inclusive. Omit it or use any negative value to read through the end;"
+            description = "Optional one-based last line, inclusive. Omit it to read through the end of the file;"
               .. " values past the end are clamped.",
+          },
+          limit = {
+            type = "integer",
+            description = "Optional number of lines to read from start_line. Ignored when end_line is given.",
           },
         },
         required = {
@@ -187,7 +204,7 @@ return {
     ---@param opts { tools: CodeCompanion.Tools }
     ---@return string
     cmd_string = function(self, opts)
-      return self.args.filepath
+      return self.args.filepath or ""
     end,
 
     ---The message which is shared with the user when asking for their approval
@@ -195,7 +212,7 @@ return {
     ---@param meta { tools: CodeCompanion.Tools }
     ---@return nil|string
     prompt = function(self, meta)
-      return fmt("Read `%s`?", vim.fn.fnamemodify(self.args.filepath, ":."))
+      return fmt("Read `%s`?", tool_helpers.display_path(self.args.filepath))
     end,
 
     ---@param self CodeCompanion.Tool.ReadFile

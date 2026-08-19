@@ -34,6 +34,8 @@ local json_repair = require("codecompanion.interactions.chat.tools.builtin.inser
 local match_selector = require("codecompanion.interactions.chat.tools.builtin.insert_edit_into_file.match_selector")
 local process_mod = require("codecompanion.interactions.chat.tools.builtin.insert_edit_into_file.process")
 
+local tool_helpers = require("codecompanion.interactions.chat.tools.builtin.helpers")
+
 local buf_utils = require("codecompanion.utils.buffers")
 local file_utils = require("codecompanion.utils.files")
 local utils = require("codecompanion.utils")
@@ -91,7 +93,7 @@ local function make_file_source(action)
       )
   end
 
-  local display_name = vim.fn.fnamemodify(action.filepath, ":.")
+  local display_name = tool_helpers.display_path(action.filepath)
 
   return {
     content = content,
@@ -251,13 +253,17 @@ return {
     type = "function",
     ["function"] = {
       name = "insert_edit_into_file",
-      description = PROMPT,
+      description = "Edit an existing file by replacing exact text. Every entry in `edits` finds its `oldText` and replaces it with `newText`, applied in order."
+        .. "\n- `oldText` must match the file exactly and include enough surrounding context to be unique. Never use placeholders such as `// ...existing code...`."
+        .. "\n- Use `oldText` of `^` to insert at the start of the file, or `$` to append to the end."
+        .. "\n- Set `replaceAll` to true to change every occurrence."
+        .. "\n- Set `mode` to `overwrite` to replace the whole file with the first edit's `newText`.",
       parameters = {
         type = "object",
         properties = {
           filepath = {
             type = "string",
-            description = "The absolute path to the file to edit, including its filename and extension",
+            description = "Path to the file to edit, absolute or relative to the current working directory, including its filename and extension",
           },
           edits = {
             type = "array",
@@ -279,7 +285,7 @@ return {
                   description = "Replace all occurrences of oldText. If false and multiple matches are found, the system will try to automatically select the best match or ask for clarification.",
                 },
               },
-              required = { "oldText", "newText", "replaceAll" },
+              required = { "oldText", "newText" },
               additionalProperties = false,
             },
           },
@@ -294,12 +300,17 @@ return {
             description = "Brief explanation of what the edits accomplish",
           },
         },
-        required = { "filepath", "edits", "explanation", "mode" },
+        required = { "filepath", "edits" },
         additionalProperties = false,
       },
-      strict = true,
     },
   },
+  ---The matching rules are long, so they go into the system prompt rather than
+  ---bloating the tool schema that every request carries
+  ---@return string
+  system_prompt = function()
+    return PROMPT
+  end,
   handlers = {
     ---The handler to determine whether to prompt the user for approval
     ---@param self CodeCompanion.Tool.InsertEditIntoFile
@@ -307,7 +318,7 @@ return {
     ---@return boolean
     prompt_condition = function(self, meta)
       local args = self.args
-      local bufnr = buf_utils.get_bufnr_from_path(args.filepath)
+      local bufnr = type(args.filepath) == "string" and buf_utils.get_bufnr_from_path(args.filepath) or nil
       if bufnr then
         if self.opts.require_approval_before and self.opts.require_approval_before.buffer then
           return true
@@ -339,8 +350,8 @@ return {
     ---@return nil|string
     prompt = function(self, meta)
       local args = self.args
-      local display_path = vim.fn.fnamemodify(args.filepath, ":.")
-      local edit_count = args.edits and #args.edits or 0
+      local display_path = tool_helpers.display_path(args.filepath)
+      local edit_count = type(args.edits) == "table" and #args.edits or 0
       return fmt("Apply %d edit(s) to `%s`?", edit_count, display_path)
     end,
 

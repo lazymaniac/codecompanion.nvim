@@ -54,6 +54,13 @@ return {
     ---@param opts { output_cb: fun(response: {status: "success"|"error", data: string}) }
     ---@return nil
     function(self, args, opts)
+      if args.content == nil or args.content == vim.NIL then
+        return opts.output_cb({
+          status = "error",
+          data = "The `content` parameter is required. Pass an empty string to create an empty file",
+        })
+      end
+
       local filepath = vim.fs.normalize(args.filepath)
 
       local ok, error_message = validate_creation_path(filepath)
@@ -61,7 +68,7 @@ return {
         return opts.output_cb({ status = "error", data = error_message })
       end
 
-      local display_path = vim.fn.fnamemodify(args.filepath, ":.")
+      local display_path = helpers.display_path(args.filepath)
 
       return diff.review({
         from_lines = {},
@@ -84,17 +91,18 @@ return {
     type = "function",
     ["function"] = {
       name = "create_file",
-      description = "This is a tool for creating a new file on the user's machine. The file will be created with the specified content, creating any necessary parent directories.",
+      description = "This is a tool for creating a new file on the user's machine. The file will be created with the specified content, creating any necessary parent directories."
+        .. " It fails if the path already exists; use the insert_edit_into_file tool with mode `overwrite` to replace the contents of an existing file.",
       parameters = {
         type = "object",
         properties = {
           filepath = {
             type = "string",
-            description = "The absolute path to the file to create, including its filename and extension.",
+            description = "Path to the file to create, absolute or relative to the current working directory, including its filename and extension.",
           },
           content = {
             type = "string",
-            description = "The content to write to the file.",
+            description = "The content to write to the file. Pass an empty string to create an empty file.",
           },
         },
         required = {
@@ -118,7 +126,7 @@ return {
     ---@param opts { tools: CodeCompanion.Tools }
     ---@return string
     cmd_string = function(self, opts)
-      return self.args.filepath
+      return self.args.filepath or ""
     end,
 
     ---@param self CodeCompanion.Tool.CreateFile

@@ -2,6 +2,16 @@ local fmt = string.format
 
 local M = {}
 
+---Path relative to the cwd, tolerating a filepath the LLM never sent
+---@param filepath string?
+---@return string
+M.display_path = function(filepath)
+  if type(filepath) ~= "string" or filepath == "" then
+    return "<no path given>"
+  end
+  return vim.fn.fnamemodify(filepath, ":.")
+end
+
 ---Rejection message back to the LLM
 ---@param self CodeCompanion.Tools.Tool
 ---@param opts table

@@ -63,13 +63,14 @@ return {
     type = "function",
     ["function"] = {
       name = "delete_file",
-      description = "This is a tool for deleting a file on the user's machine",
+      description = "This is a tool for deleting a file on the user's machine."
+        .. " Only files inside the current working directory can be deleted, and directories cannot be deleted at all.",
       parameters = {
         type = "object",
         properties = {
           filepath = {
             type = "string",
-            description = "The absolute path to the file to delete",
+            description = "Path to the file to delete, absolute or relative to the current working directory. It must sit inside the current working directory.",
           },
         },
         required = {
@@ -92,7 +93,7 @@ return {
     ---@param opts { tools: CodeCompanion.Tools }
     ---@return string
     cmd_string = function(self, opts)
-      return self.args.filepath
+      return self.args.filepath or ""
     end,
 
     ---The message which is shared with the user when asking for their approval
@@ -100,7 +101,7 @@ return {
     ---@param meta { tools: CodeCompanion.Tools }
     ---@return nil|string
     prompt = function(self, meta)
-      return fmt("Delete the file at `%s`?", vim.fn.fnamemodify(self.args.filepath, ":."))
+      return fmt("Delete the file at `%s`?", helpers.display_path(self.args.filepath))
     end,
 
     ---@param self CodeCompanion.Tool.DeleteFile
@@ -108,7 +109,7 @@ return {
     ---@param meta { tools: CodeCompanion.Tools, cmd: table }
     success = function(self, stdout, meta)
       local chat = meta.tools.chat
-      local display_path = vim.fn.fnamemodify(self.args.filepath, ":.")
+      local display_path = helpers.display_path(self.args.filepath)
 
       chat:add_tool_output(self, fmt([[Deleted file `%s`]], display_path))
     end,

@@ -20,12 +20,23 @@ local severity_labels = {
   [4] = "HINT",
 }
 
--- Map schema severity names to vim.diagnostic.severity keys
+-- Map schema severity names, plus the shorthands LLMs tend to use, to
+-- vim.diagnostic.severity keys
 local severity_map = {
+  E = "ERROR",
+  ERR = "ERROR",
   ERROR = "ERROR",
+  ERRORS = "ERROR",
+  W = "WARN",
+  WARN = "WARN",
   WARNING = "WARN",
+  WARNINGS = "WARN",
+  I = "INFO",
+  INFO = "INFO",
   INFORMATION = "INFO",
+  H = "HINT",
   HINT = "HINT",
+  HINTS = "HINT",
 }
 
 ---Resolve a filepath to a loaded buffer, reading it in the background if it isn't open
@@ -219,11 +230,18 @@ local function get_diagnostics(action, callback)
   end
 
   local min_severity = vim.diagnostic.severity.HINT
-  if action.severity then
-    local key = severity_map[string.upper(action.severity)]
-    if key then
-      min_severity = vim.diagnostic.severity[key] or min_severity
+  if action.severity and action.severity ~= vim.NIL and action.severity ~= "" then
+    local key = severity_map[string.upper(tostring(action.severity))]
+    if not key then
+      return callback({
+        status = "error",
+        data = fmt(
+          "`%s` is not a severity level. Use one of: ERROR, WARNING, INFORMATION, HINT",
+          tostring(action.severity)
+        ),
+      })
     end
+    min_severity = vim.diagnostic.severity[key] or min_severity
   end
 
   on_diagnostics(bufnr, { freshly_loaded = buffer.freshly_loaded }, function()
@@ -272,7 +290,7 @@ return {
         properties = {
           filepath = {
             type = "string",
-            description = "The absolute path to the file to retrieve diagnostics for, including its filename and extension.",
+            description = "Path to the file to retrieve diagnostics for, absolute or relative to the current working directory.",
           },
           severity = {
             type = "string",
@@ -300,7 +318,7 @@ return {
     ---@param opts { tools: CodeCompanion.Tools }
     ---@return string
     cmd_string = function(self, opts)
-      return self.args.filepath
+      return self.args.filepath or ""
     end,
 
     ---The message which is shared with the user when asking for their approval
@@ -308,7 +326,7 @@ return {
     ---@param meta { tools: CodeCompanion.Tools }
     ---@return nil|string
     prompt = function(self, meta)
-      return fmt("Get diagnostics for `%s`?", vim.fn.fnamemodify(self.args.filepath, ":."))
+      return fmt("Get diagnostics for `%s`?", helpers.display_path(self.args.filepath))
     end,
 
     ---@param self CodeCompanion.Tool.GetDiagnostics
@@ -317,7 +335,7 @@ return {
     success = function(self, stdout, meta)
       local chat = meta.tools.chat
       local llm_output = vim.iter(stdout):flatten():join("\n")
-      local display_path = vim.fn.fnamemodify(self.args.filepath, ":.")
+      local display_path = helpers.display_path(self.args.filepath)
       chat:add_tool_output(self, llm_output, fmt("Got diagnostics for `%s`", display_path))
     end,
 

@@ -41,6 +41,20 @@ local T = new_set({
           return chat.messages[#chat.messages].content
         end
 
+        function _G.execute_tool_call(name, arguments)
+          local message_count = #chat.messages
+          tools:execute(chat, {
+            {
+              ["function"] = { name = name, arguments = vim.json.encode(arguments) },
+            },
+          })
+          assert(vim.wait(1000, function()
+            return #chat.messages > message_count
+          end), name .. " did not produce output")
+
+          return chat.messages[#chat.messages].content
+        end
+
         function _G.write_test_file(lines)
           assert(vim.fn.writefile(lines, _G.TEST_TMPFILE_ABSOLUTE) == 0)
         end
@@ -81,7 +95,7 @@ local function expect_error(output, ...)
 end
 
 T["reads an explicit inclusive range"] = function()
-  local output = execute_read_file({ start_line = 1, end_line = 2 })
+  local output = execute_read_file({ start_line = 2, end_line = 3 })
 
   expect_lines(output, { "beta", "gamma" }, { "alpha", "delta" })
 end
@@ -90,14 +104,14 @@ T["reads the whole file when bounds are omitted"] = function()
   local output = execute_read_file()
 
   expect_lines(output, { "alpha", "beta", "gamma", "delta" })
-  h.expect_contains("from lines 0 - 3", output)
+  h.expect_contains("from lines 1 - 4", output)
 end
 
 T["reads an empty file as a single empty line"] = function()
   write_test_file({})
   local output = execute_read_file()
 
-  h.expect_contains("from lines 0 - 0", output)
+  h.expect_contains("from lines 1 - 1", output)
   h.expect_not_contains("Error reading", output)
 end
 
@@ -107,16 +121,38 @@ T["treats empty and null bounds as omitted"] = function()
   expect_lines(output, { "alpha", "beta", "gamma", "delta" })
 end
 
-T["treats negative bounds as omitted"] = function()
-  expect_lines(execute_read_file({ start_line = -37, end_line = 1 }), { "alpha", "beta" }, { "gamma", "delta" })
-  expect_lines(execute_read_file({ start_line = 2, end_line = -91 }), { "gamma", "delta" }, { "alpha", "beta" })
+T["treats bounds below the first line as omitted"] = function()
+  expect_lines(execute_read_file({ start_line = -37, end_line = 2 }), { "alpha", "beta" }, { "gamma", "delta" })
+  expect_lines(execute_read_file({ start_line = 0, end_line = 2 }), { "alpha", "beta" }, { "gamma", "delta" })
+  expect_lines(execute_read_file({ start_line = 3, end_line = -91 }), { "gamma", "delta" }, { "alpha", "beta" })
+end
+
+T["reads a line count from start_line when limit is given"] = function()
+  local output = execute_read_file({ start_line = 2, limit = 2 })
+
+  expect_lines(output, { "beta", "gamma" }, { "alpha", "delta" })
+  h.expect_contains("from lines 2 - 3", output)
+end
+
+T["prefers end_line over limit"] = function()
+  local output = execute_read_file({ start_line = 1, end_line = 1, limit = 4 })
+
+  expect_lines(output, { "alpha" }, { "beta", "gamma", "delta" })
 end
 
 T["clamps an oversized end_line to the end of the file"] = function()
-  local output = execute_read_file({ start_line = 2, end_line = 100 })
+  local output = execute_read_file({ start_line = 3, end_line = 100 })
 
   expect_lines(output, { "gamma", "delta" }, { "alpha", "beta" })
-  h.expect_contains("from lines 2 - 3", output)
+  h.expect_contains("from lines 3 - 4", output)
+end
+
+T["renames the parameter names other tools use"] = function()
+  local output = child.lua_get([[
+    _G.execute_tool_call("read_file", { path = _G.TEST_TMPFILE_ABSOLUTE, offset = 2, limit = 2 })
+  ]])
+
+  expect_lines(output, { "beta", "gamma" }, { "alpha", "delta" })
 end
 
 T["rejects a malformed bound"] = function()
@@ -125,15 +161,24 @@ T["rejects a malformed bound"] = function()
 end
 
 T["rejects a reversed finite range"] = function()
-  local output = execute_read_file({ start_line = 2, end_line = 1 })
+  local output = execute_read_file({ start_line = 3, end_line = 2 })
 
   expect_error(output, "start_line", "end_line")
 end
 
 T["rejects a start_line beyond the end of the file"] = function()
-  local output = execute_read_file({ start_line = 4 })
+  local output = execute_read_file({ start_line = 5 })
 
   expect_error(output, "start_line")
+end
+
+T["reports a missing filepath instead of failing"] = function()
+  local output = child.lua_get([[
+    _G.execute_tool_call("read_file", { start_line = 1 })
+  ]])
+
+  h.expect_contains("missing required `filepath`", output)
+  h.expect_contains("`filepath` (required)", output)
 end
 
 return T

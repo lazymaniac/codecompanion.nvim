@@ -16,6 +16,7 @@
 local Orchestrator = require("codecompanion.interactions.chat.tools.orchestrator")
 local approvals = require("codecompanion.interactions.chat.tools.approvals")
 local config = require("codecompanion.config")
+local tool_args = require("codecompanion.interactions.chat.tools.args")
 local tool_filter = require("codecompanion.interactions.chat.tools.filter")
 local triggers = require("codecompanion.triggers")
 
@@ -87,8 +88,17 @@ function Tools:_handle_tool_error(tool, error_message)
     available_tools_msg = "No tools available"
   end
 
+  self:_report_tool_error(tool_call, string.format("Tool `%s` not found. %s", name, available_tools_msg), "")
+end
+
+---Send an error about a tool call back to the LLM
+---@param tool table The tool the error relates to
+---@param message string The message for the LLM
+---@param for_user? string The message for the chat buffer
+---@return nil
+function Tools:_report_tool_error(tool, message, for_user)
   self.status = CONSTANTS.STATUS_ERROR
-  self.chat:add_tool_output(tool_call, string.format("Tool `%s` not found. %s", name, available_tools_msg), "")
+  self.chat:add_tool_output(tool, message, for_user)
 end
 
 ---Resolve and prepare a tool for execution
@@ -96,7 +106,7 @@ end
 ---@param id number The execution ID for event firing
 ---@return table|nil The resolved tool or nil if failed
 ---@return string|nil Error message if resolution failed
----@return boolean|nil Whether this is a JSON parsing error that needs special handling
+---@return "json"|"args"|nil How the failure was already reported to the LLM
 function Tools:_resolve_and_prepare_tool(tool, id)
   local name = tool["function"].name
   local tool_config = self.tools_config[name]
@@ -107,7 +117,7 @@ function Tools:_resolve_and_prepare_tool(tool, id)
   end
 
   if not tool_config then
-    return nil, string.format("Couldn't find the tool `%s`", name), false
+    return nil, string.format("Couldn't find the tool `%s`", name), nil
   end
 
   local ok, resolved_tool = pcall(function()
@@ -116,7 +126,7 @@ function Tools:_resolve_and_prepare_tool(tool, id)
 
   if not ok or not resolved_tool then
     log:debug("Tool resolution failed for `%s`: %s", name, resolved_tool)
-    return nil, string.format("Couldn't resolve the tool `%s`", name), false
+    return nil, string.format("Couldn't resolve the tool `%s`", name), nil
   end
 
   -- NOTE: We deepcopy here to avoid mutating the original tool definition which
@@ -126,8 +136,8 @@ function Tools:_resolve_and_prepare_tool(tool, id)
   prepared_tool.function_call = tool
 
   -- Parse and set arguments - handle JSON errors specially like the original code
-  if tool["function"].arguments then
-    local args = tool["function"].arguments
+  local args = tool["function"].arguments
+  if args then
     -- For some adapter's that aren't streaming, the args are strings rather than tables
     if type(args) == "string" then
       if args == "" then
@@ -143,13 +153,25 @@ function Tools:_resolve_and_prepare_tool(tool, id)
         )
         self.status = CONSTANTS.STATUS_ERROR
         utils.fire("ToolsFinished", { id = id, bufnr = self.bufnr })
-        return nil, "JSON parsing failed", true -- Special flag to indicate this was handled
+        return nil, "JSON parsing failed", "json"
       end
 
       args = decoded
     end
-    prepared_tool.args = args
   end
+
+  if type(args) ~= "table" then
+    args = {}
+  end
+
+  local tool_schema = prepared_tool.schema and prepared_tool.schema["function"]
+  local normalized_args, args_error = tool_args.normalize(tool_schema, args)
+  if args_error then
+    log:debug("Invalid arguments for `%s`: %s", name, args_error)
+    self:_report_tool_error(prepared_tool, args_error, string.format("`%s` was called with invalid arguments", name))
+    return nil, args_error, "args"
+  end
+  prepared_tool.args = normalized_args
 
   -- Merge options
   prepared_tool.opts = vim.tbl_extend("force", prepared_tool.opts or {}, tool_config.opts or {})
@@ -160,7 +182,7 @@ function Tools:_resolve_and_prepare_tool(tool, id)
     utils.replace_placeholders(prepared_tool.cmds, env)
   end
 
-  return prepared_tool, nil, false
+  return prepared_tool, nil, nil
 end
 
 -- Public interface methods
@@ -274,15 +296,17 @@ function Tools:execute(chat, tools)
     local orchestrator = Orchestrator.new(self, id)
 
     for _, tool in ipairs(tools) do
-      local resolved_tool, error_msg, is_json_error = self:_resolve_and_prepare_tool(tool, id)
+      local resolved_tool, error_msg, reported_as = self:_resolve_and_prepare_tool(tool, id)
 
       if not resolved_tool then
-        if is_json_error then
-          -- JSON error was already handled by _resolve_and_prepare_tool
+        if reported_as == "json" then
+          -- A JSON error also finalises the run, so there is nothing left to do
           return
         end
         -- Report the error to the LLM but continue processing remaining tools
-        self:_handle_tool_error(tool, error_msg or "Unknown Error occurred")
+        if reported_as ~= "args" then
+          self:_handle_tool_error(tool, error_msg or "Unknown Error occurred")
+        end
       else
         self.tool = resolved_tool --[[@as CodeCompanion.Tools.Tool]]
         orchestrator.queue:push(resolved_tool)

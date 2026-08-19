@@ -28,7 +28,7 @@ T["run_command tool"] = function()
       {
         ["function"] = {
           name = "run_command",
-          arguments = '{"cmd": "echo hello world"}',
+          arguments = '{"cmd": "echo hello world", "flag": null}',
         },
       },
     }
@@ -60,7 +60,7 @@ T["run_command tool times out a long running command"] = function()
       {
         ["function"] = {
           name = "run_command",
-          arguments = '{"cmd": "sleep 2"}',
+          arguments = '{"cmd": "sleep 2", "flag": null}',
         },
       },
     }
@@ -86,7 +86,7 @@ T["stopping the chat kills a running command"] = function()
       {
         ["function"] = {
           name = "run_command",
-          arguments = string.format('{"cmd": "sleep 1 && touch %s"}', _G.marker),
+          arguments = string.format('{"cmd": "sleep 1 && touch %s", "flag": null}', _G.marker),
         },
       },
     }
